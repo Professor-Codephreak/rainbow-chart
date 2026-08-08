@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rainbow-chart.js — the Bitcoin rainbow, drawn in the browser</title>
+<style>
+  :root { --bg:#160a0f; --ink:#f6e7eb; --dim:#b98da0; --rose:#ff4d6d; --seam:#4a1f30;
+          --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace; }
+  * { margin:0; padding:0; box-sizing:border-box }
+  body { background:var(--bg); color:var(--ink); line-height:1.6;
+         font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; padding:32px 20px }
+  main { max-width:1080px; margin:0 auto }
+  h1 { font-family:var(--mono); font-size:clamp(20px,4vw,32px); letter-spacing:-.01em; margin-bottom:8px }
+  p.lede { color:var(--dim); max-width:70ch; margin-bottom:24px }
+  .chart { border:1px solid var(--seam); border-radius:10px; padding:8px; overflow-x:auto }
+  .chart svg { display:block; width:100%; height:auto; min-width:760px; border-radius:6px }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin:18px 0 }
+  button { font-family:var(--mono); font-size:13px; background:#2b111c; color:var(--ink);
+           border:1px solid var(--seam); border-radius:7px; padding:8px 14px; cursor:pointer }
+  button:hover { border-color:var(--rose); color:var(--rose) }
+  pre { font-family:var(--mono); font-size:12.5px; background:#2b111c; border:1px solid var(--seam);
+        border-radius:8px; padding:14px 16px; overflow-x:auto; color:var(--dim); margin-top:18px }
+</style>
+</head>
+<body>
+<main>
+  <h1>rainbow-chart.js</h1>
+  <p class="lede">
+    The Bitcoin rainbow chart as an arc — a logarithmic regression on linear time, nine bands,
+    a market-cap axis, drawn as SVG with no dependencies and no network calls. The price series is
+    embedded, so this page renders identically with the network unplugged.
+  </p>
+
+  <!-- self-boot: the script finds this mount and draws into it -->
+  <div class="chart"><div data-rainbow-chart data-height="600"></div></div>
+
+  <div class="row">
+    <button type="button" data-to="2027">to 2027</button>
+    <button type="button" data-to="2030">to 2030</button>
+    <button type="button" data-to="2040">to 2040</button>
+  </div>
+
+  <pre id="readout"></pre>
+</main>
+
+<script src="./rainbow-chart.js"></script>
+<script>
+(function () {
+  'use strict';
+  var mount = document.querySelector('[data-rainbow-chart]');
+  var R = window.RainbowChart;
+
+  document.querySelectorAll('button[data-to]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      R.render(mount, { to: +b.getAttribute('data-to'), height: 600 });
+    });
+  });
+
+  // Everything below is read back out of the library, so nothing on the page is a hand-typed
+  // figure that can drift away from the chart it describes.
+  var x = R.SERIES_LAST_X;
+  var usd = Math.pow(10, R.SERIES[R.SERIES.length - 1]);
+  var band = R.bandOf(usd, x);
+  var when = new Date(R.msOf(x));
+
+  document.getElementById('readout').textContent = [
+    'fit        ln(price) = ' + R.FIT.a + ' * ln(' + R.FIT.b + ' + x) + (' + R.FIT.c + ')',
+    'fitted on  ' + R.FIT.n.toLocaleString('en-US') + ' daily closes, ' + R.FIT.from + ' -> ' + R.FIT.to,
+    'R2         ' + R.FIT.r2.toFixed(4),
+    '',
+    'last close ' + R.usdLabel(usd) + '  on ' + R.FIT.to,
+    'the fit    ' + R.usdLabel(R.fit(x)),
+    'ratio      ' + (usd / R.fit(x)).toFixed(3) + 'x',
+    'band       ' + band + ' - ' + (band < 0 ? 'below the scale' : band > 8 ? 'above the scale' : R.BANDS[band].name),
+    '',
+    'supply     ' + Math.round(R.supplyAt(when)).toLocaleString('en-US') + ' BTC (from the emission schedule)',
+    'market cap ' + R.usdLabel(R.marketcapAt(usd, when))
+  ].join('\n');
+})();
+</script>
+</body>
+</html>

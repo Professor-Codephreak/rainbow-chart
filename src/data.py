@@ -1,7 +1,20 @@
+"""
+data.py — loading the price series and fitting the curve.
+
+Two changes from upstream, both about making the module importable in places that cannot install
+a full exchange SDK (mindX runs it that way):
+
+  1. ccxt is imported LAZILY. Upstream builds its list of supported exchanges by instantiating
+     every exchange ccxt knows about at import time, which costs seconds and makes ccxt a hard
+     dependency of merely reading the CSV. Here the import — and the probe — happen only if the
+     data is actually stale and needs refreshing.
+  2. `get_data(..., offline=True)` never reaches for the network at all: it reads the CSV, fits,
+     and returns, however old the CSV is. Staleness is reported, not silently repaired.
+"""
+
 import datetime
 import time
 
-import ccxt
 import numpy as np
 import pandas as pd
 from dateutil.parser import parse
@@ -13,16 +26,36 @@ def log_func(x, a, b, c):
     return a * np.log(b + x) + c
 
 
-def get_data(file_path):
+def _exchanges_with_ohlcv():
+    """
+    The ccxt exchanges that can serve OHLCV, probed on demand.
+
+    Upstream ran this at import time. It instantiates every exchange class ccxt ships, so it is
+    slow and it makes ccxt mandatory for anyone who only wants to read the bundled CSV.
+    """
+    import ccxt
+
+    found = []
+    for exchange_id in ccxt.exchanges:
+        try:
+            if getattr(ccxt, exchange_id)().has["fetchOHLCV"]:
+                found.append(exchange_id)
+        except Exception:
+            continue  # an exchange class that will not instantiate is simply not a candidate
+    return found
+
+
+def get_data(file_path, offline=False):
     """
     Load and preprocess data from a CSV file.
 
     Args:
         file_path (str): Path to the CSV file.
+        offline (bool): If True, never fetch — use the CSV as it stands, however stale.
 
     Returns:
         pd.DataFrame: Processed data.
-        np.ndarray: Fitted Y data.
+        np.ndarray: Fitted parameters (a, b, c).
     """
     raw_data = pd.read_csv(file_path)
     raw_data["Date"] = pd.to_datetime(raw_data["Date"])
@@ -30,22 +63,22 @@ def get_data(file_path):
     # Calculate the difference in days between the last date and today
     diff_days = (pd.Timestamp.today() - raw_data["Date"].max()).days
 
-    if diff_days > 1:
+    if diff_days > 1 and not offline:
         print(f"Data is {diff_days} days old. Updating...")
+        try:
+            new_data = fetch_data(
+                since=raw_data["Date"].max(), limit=diff_days, exchange="binance"
+            )
+            raw_data = pd.concat([raw_data, new_data])
+            raw_data.to_csv(file_path, index=False)
+        except Exception as exc:  # network down, ccxt absent, exchange geoblocked
+            print(f"Could not refresh the series ({exc}). Drawing from the CSV as it stands.")
+    elif diff_days > 1:
+        print(f"Offline: drawing from a CSV that is {diff_days} days old.")
 
-        # Get new data
-        # raw_data = pd.DataFrame(nasdaqdatalink.get("BCHAIN/MKPRU")).reset_index()
-        new_data = fetch_data(
-            since=raw_data["Date"].max(), limit=diff_days, exchange="binance"
-        )
-
-        # Append new data to the existing data
-        raw_data = pd.concat([raw_data, new_data])
-
-        # Save new data
-        raw_data.to_csv(file_path, index=False)
-
-    raw_data = raw_data[raw_data["Value"] > 0]
+    # Zero rows are the pre-market era of the dataset; duplicates creep in at refresh boundaries.
+    raw_data = raw_data[raw_data["Value"] > 0].drop_duplicates(subset=["Date"])
+    raw_data = raw_data.sort_values("Date").reset_index(drop=True)
 
     # Prepare data for curve fitting
     xdata = np.array([x + 1 for x in range(len(raw_data))])
@@ -55,15 +88,6 @@ def get_data(file_path):
     popt, _ = curve_fit(log_func, xdata, ydata)
 
     return raw_data, popt
-
-
-# Save the exchanges that are useful
-exchanges_with_ohlcv = []
-
-for exchange_id in ccxt.exchanges:
-    exchange = getattr(ccxt, exchange_id)()
-    if exchange.has["fetchOHLCV"]:
-        exchanges_with_ohlcv.append(exchange_id)
 
 
 def fetch_data(
@@ -83,6 +107,7 @@ def fetch_data(
 
     All the timeframe options are: '1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M'
     """
+    import ccxt
 
     timeframe: str = "1d"
     symbol: str = "BTC/USDT"
@@ -97,9 +122,10 @@ def fetch_data(
     # Always convert to lowercase
     exchange = exchange.lower()
 
-    if exchange not in exchanges_with_ohlcv:
+    if exchange not in _exchanges_with_ohlcv():
         raise ValueError(
-            f"{exchange} is not a supported exchange. Please use one of the following: {exchanges_with_ohlcv}"
+            f"{exchange} is not a supported exchange. Please use one of the following: "
+            f"{_exchanges_with_ohlcv()}"
         )
 
     exchange = getattr(ccxt, exchange)()

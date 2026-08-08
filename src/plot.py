@@ -1,3 +1,15 @@
+"""
+plot.py — the matplotlib renderer for the Bitcoin rainbow chart.
+
+Upstream (StephanAkkerman/bitcoin-rainbow-chart) drew the arc, the price line, the halving lines
+and the top legend. This fork keeps all of that verbatim and adds one thing: a MARKET CAP axis
+down the right margin, sharing the price axis's gridlines because market cap is that axis
+rescaled by the 21,000,000 terminal supply.
+
+The band arithmetic lives in `rainbow.py`, which has no plotting dependencies and is the module
+the JavaScript renderer is checked against.
+"""
+
 from datetime import timedelta
 
 import matplotlib.dates as mdates
@@ -7,6 +19,7 @@ import pandas as pd
 from matplotlib.ticker import FuncFormatter
 
 from data import log_func
+from rainbow import TERMINAL_SUPPLY, usd_label
 
 # Define constants
 COLORS_LABELS = {
@@ -27,8 +40,15 @@ BACKGROUND_COLOR = "#0d1117"
 EXTEND_MONTHS = 9
 
 
-def create_plot(raw_data, popt):
+def create_plot(raw_data, popt, marketcap=True):
+    """
+    Draw the whole chart.
 
+    Args:
+        raw_data (pd.DataFrame): columns Date, Value.
+        popt: the fitted (a, b, c).
+        marketcap (bool): draw the right-hand market-cap axis.
+    """
     # Create plot
     fig, ax = plt.subplots(figsize=FIGURE_SIZE)
     fig.patch.set_facecolor(BACKGROUND_COLOR)
@@ -44,7 +64,13 @@ def create_plot(raw_data, popt):
     # Configure plot appearance
     configure_plot(ax, raw_data)
 
+    # The market-cap axis has to come after configure_plot, because it mirrors the price limits.
+    if marketcap:
+        add_marketcap_axis(ax)
+
     add_legend(ax)
+
+    return fig, ax
 
 
 def add_halving_lines(ax):
@@ -143,6 +169,41 @@ def y_format(y, _):
         return f"${y/1_000_000:.1f}M".replace(".0M", "M").replace(".", ",")
 
 
+def add_marketcap_axis(ax):
+    """
+    Mirror the price axis as market cap down the right margin.
+
+    Market cap is price x 21,000,000 (the terminal supply), so the secondary axis is the primary
+    one rescaled: every market-cap tick sits on exactly the gridline of the price it belongs to.
+    It is a rescale, not a second measurement — which is why it can share the geometry without
+    interpolation and without the two scales ever drifting apart.
+
+    For the market cap at a PAST date, where less than the terminal supply had been mined, use
+    `rainbow.marketcap_at()`.
+    """
+    mc = ax.twinx()
+    mc.set_yscale("log")
+    low, high = ax.get_ylim()
+    mc.set_ylim(low * TERMINAL_SUPPLY, high * TERMINAL_SUPPLY)
+
+    # Pin the ticks to the PRICE decades rescaled, rather than letting matplotlib choose its own
+    # round market-cap decades. Left untouched, the twin axis picks $1T/$10T, which land between
+    # the price gridlines and read as a second, subtly misaligned scale. Forcing them keeps the
+    # promise the axis makes: one gridline, two readings of the same fact.
+    price_ticks = [t for t in ax.get_yticks() if low <= t <= high]
+    mc.set_yticks([t * TERMINAL_SUPPLY for t in price_ticks])
+    mc.set_yticks([], minor=True)
+    mc.yaxis.set_major_formatter(FuncFormatter(lambda y, _: usd_label(y)))
+    mc.tick_params(axis="y", colors="white", labelsize="small")
+    mc.set_ylabel(
+        f"market cap (at the {TERMINAL_SUPPLY:,} terminal supply)",
+        color="white", fontsize="small",
+    )
+    for spine in mc.spines.values():
+        spine.set_visible(False)
+    return mc
+
+
 def configure_plot(ax, raw_data):
     """
     Configure the appearance of the plot.
@@ -214,4 +275,4 @@ def add_legend(ax):
         text.set_fontweight("bold")
 
     # Adjust layout to reduce empty space around the plot
-    plt.subplots_adjust(left=0.05, right=0.975, top=0.875, bottom=0.1)
+    plt.subplots_adjust(left=0.05, right=0.925, top=0.875, bottom=0.1)

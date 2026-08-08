@@ -1,5 +1,13 @@
-pandas==2.0.3
-numpy==1.24.4
-matplotlib==3.5.1
-scipy==1.13.1
-ccxt==4.3.31
+# The matplotlib renderer (src/).
+# The shared core (src/rainbow.py) needs NONE of these — it is standard library only.
+pandas>=2.0
+numpy>=1.24
+matplotlib>=3.5
+scipy>=1.10
+python-dateutil>=2.8
+
+# Refreshing the price series from an exchange needs ccxt. It is imported lazily, so the bundled
+# CSV draws, fits and reports without it. Install it only if you want `python src/main.py` to
+# fetch the days since 2024-05-24:
+#
+#     pip install ccxt>=4.3
