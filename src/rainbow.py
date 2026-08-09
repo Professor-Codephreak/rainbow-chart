@@ -250,7 +250,18 @@ def _trim(v: float) -> str:
 
 
 def usd_label(p: float) -> str:
-    """Compact USD label matching the JS renderer exactly: $21T, $2.1T, $210B, $65, $0.10."""
+    """
+    Compact USD label matching the JS renderer exactly: $21T, $2.1T, $210B, $65, $0.10.
+
+    Runs to quadrillions, because a long extrapolation gets there: the top band in 2140 is ~$22B
+    per coin, which is $470Q of market cap. Stopping at 'T' printed "$469674T", a number nobody can
+    read at a glance. Past a quintillion it gives up on suffixes and prints an exponent, which is
+    the honest way to say "this is off the end of the vocabulary".
+    """
+    if p >= 1e18:
+        return f"${_trim(p / 1e18)}e18"
+    if p >= 1e15:
+        return f"${_trim(p / 1e15)}Q"
     if p >= 1e12:
         return f"${_trim(p / 1e12)}T"
     if p >= 1e9:

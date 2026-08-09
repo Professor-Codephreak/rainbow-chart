@@ -143,11 +143,18 @@ class RainbowChartTool(BaseTool):
                 return await self._render(output_path)
 
             x = _core.date_to_day_index(when)
+
+            # `bands` prices the ladder for a date and needs no price of its own — it must be
+            # answered before the price check below, or asking "what are the bands today" fails
+            # for want of an argument it never uses.
+            if action == "bands":
+                return {"success": True, "date": str(when), "day_index": x, "bands": self._bands(x)}
+
             usd = float(price) if price is not None else None
             if usd is None:
                 return {
                     "success": False,
-                    "error": "this action needs a price; pass price=<usd>",
+                    "error": f"action '{action}' needs a price; pass price=<usd>",
                     "hint": "the tool holds no live feed by design — it never reaches the network",
                 }
 
@@ -162,9 +169,6 @@ class RainbowChartTool(BaseTool):
                     "marketcap_label": _core.usd_label(_core.marketcap_at(usd, when)),
                     "marketcap_at_terminal_supply": usd * _core.TERMINAL_SUPPLY,
                 }
-
-            if action == "bands":
-                return {"success": True, "date": str(when), "day_index": x, "bands": self._bands(x)}
 
             return {"success": True, **self._report(usd, x, when)}
 

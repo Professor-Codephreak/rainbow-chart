@@ -72,7 +72,7 @@ R.band_bounds(2, x)                 # (99306.81, 134050.18)  the "Accumulate" ba
 R.supply_at(dt.date(2026, 8, 8))    # 20065500.86  BTC, from the emission schedule
 R.marketcap_at(65013, dt.date(2026, 8, 8))   # 1.3045e12
 R.marketcap_axis([1e3, 1e4, 1e5])   # [2.1e10, 2.1e11, 2.1e12]
-R.usd_label(2.1e12)                 # '$2.1T'
+R.usd_label(2.1e12)                 # '$2.1T'  (runs to '$…Q', then exponents)
 
 R.PUBLISHED_FIT                     # Fit(a=5.0222935652, b=383.8277947247, c=-32.2162634088, …)
 R.fit_from_series([...])            # refit your own closes (needs scipy)
@@ -112,13 +112,17 @@ fetch, no CDN. Open `js/example.html` from disk with the network off and it draw
 
 | attribute | meaning |
 |---|---|
-| `data-to="2030"` | draw out to January of this year (default: 9 months past the last close) |
-| `data-height="600"` | SVG height in viewBox units (width is fixed at 1000 and scales) |
+| `data-to="2140"` | draw out to January of this year (default: 9 months past the last close) |
+| `data-height="600"` | SVG height in viewBox units |
+
+The forward window is unbounded. `data-to="2140"` reaches the end of emission: the price axis runs
+to $10B, the market-cap axis to $210Q, and all 32 halvings land on the canvas — four solid, 28
+dashed. Year ticks and halving ordinals thin themselves so the axis stays readable at any span.
 
 ### Call it
 
 ```js
-const chart = RainbowChart.render(mount, { to: 2030, height: 600 });
+const chart = RainbowChart.render(mount, { to: 2140, height: 600 });   // to the end of emission
 // → { svg, lastUsd, lastX, band }
 
 RainbowChart.fit(5836)                  // 115378.06   the curve at that day index
@@ -128,7 +132,7 @@ RainbowChart.BANDS[0].name              // 'Fire sale!'
 const when = RainbowChart.msOf(5836);
 RainbowChart.supplyAt(when)             // 20065500.86
 RainbowChart.marketcapAt(65013, when)   // 1.3045e12
-RainbowChart.usdLabel(2.1e12)           // '$2.1T'
+RainbowChart.usdLabel(2.1e12)           // '$2.1T'   (runs to $…Q, then exponents)
 ```
 
 ### Re-theme it
@@ -151,8 +155,11 @@ The SVG is `width: 100%; height: auto`. Put it in a container with `overflow-x: 
 
 ```css
 .chart { overflow-x: auto }
-.chart svg { display: block; width: 100%; height: auto; min-width: 760px }
+.chart svg { display: block; width: 100%; height: auto; min-width: 860px }
 ```
+
+The viewBox is 1240 x 600 (~2.07:1, close to the reference figure's 15 x 7). Pass `width:` to
+change it; the arc is a shallow curve and a squarer frame makes it read as a diagonal stripe.
 
 ### Content Security Policy
 

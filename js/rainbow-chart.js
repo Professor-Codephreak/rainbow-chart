@@ -77,7 +77,7 @@
 
   // the house palette; every colour the chart uses is overridable through opts.theme
   var THEME = {
-    bg: '#160a0f', ink: '#f6e7eb', dim: '#b98da0', faint: '#7d5d6c',
+    bg: '#160a0f', ink: '#f6e7eb', dim: '#b98da0', faint: '#7d5d6c', seam: '#4a1f30',
     price: '#ffffff', dot: '#ff4d6d', grid: '#160a0f', halving: '#f6e7eb'
   };
   // ── the embedded series: weekly closes, every 7th day from x = 1, delta-encoded log10 x 1000 ──
@@ -178,7 +178,13 @@
     return n;
   }
 
+  /// Compact USD label. Runs to quadrillions, because a long extrapolation gets there: the top
+  /// band in 2140 is ~$22B per coin, which is $470Q of market cap. Stopping at 'T' printed
+  /// "$469674T", a number nobody can read at a glance. Past a quintillion it gives up on suffixes
+  /// and prints an exponent, which is the honest way to say "this is off the end of the vocabulary".
   function usdLabel(p) {
+    if (p >= 1e18) return '$' + trim(p / 1e18) + 'e18';
+    if (p >= 1e15) return '$' + trim(p / 1e15) + 'Q';
     if (p >= 1e12) return '$' + trim(p / 1e12) + 'T';
     if (p >= 1e9) return '$' + trim(p / 1e9) + 'B';
     if (p >= 1e6) return '$' + trim(p / 1e6) + 'M';
@@ -192,35 +198,61 @@
     return s.indexOf('.') < 0 ? s : s.replace(/0+$/, '').replace(/\.$/, '');
   }
 
-  // ── the legend, flowed into rows ──
-  // Monospace, so a character is a known fraction of the size and the row widths can be measured
-  // without a DOM round-trip. Items that do not fit wrap to the next row; the caller gets the
-  // total height back and lays the plot out beneath it.
-  function drawLegend(svg, W, theme, fontSize) {
-    var SW = 10, PAD = 5, GAP = 14, ROW = 16, charW = fontSize * 0.6;
+  // ── the legend, stacked into the empty top-left ──
+  // The arc climbs from the bottom-left to the top-right, so the corner ABOVE the early years is
+  // dead space in every window this chart can draw — the wider the window, the more of it there is.
+  // Putting the key there costs the plot nothing, where a banner across the top costs it a strip of
+  // height and a right-margin column costs it the market-cap axis. Each label is painted in its own
+  // band's colour, so the key needs no swatch to be read: the word IS the sample.
+  //
+  // It sits on a backing plate because the decade gridlines run the full width of the plot and
+  // would otherwise strike through the text.
+  function drawCornerLegend(svg, L, T, theme, fontSize, note) {
+    var ROW = fontSize + 5, PAD = 11, SW = 9, GAP = 6, charW = fontSize * 0.6;
     var items = [{ name: 'BTC price', col: theme.price }];
     for (var i = 8; i >= 0; i--) items.push(BANDS[i]);
 
-    var rows = [[]], widths = [0], r = 0;
+    var wide = note ? note.length * (fontSize - 1.5) * 0.6 : 0;
+    for (i = 0; i < items.length; i++) wide = Math.max(wide, items[i].name.length * charW);
+    var boxW = PAD * 2 + SW + GAP + wide;
+    var boxH = PAD * 2 + items.length * ROW - 5 + (note ? ROW + 4 : 0);
+    var x0 = L + 12, y0 = T + 12;
+
+    svg.appendChild(el('rect', {
+      x: x0, y: y0, width: boxW, height: boxH, rx: 7,
+      fill: theme.bg, 'fill-opacity': 0.96, stroke: theme.seam, 'stroke-opacity': 0.55
+    }));
     for (i = 0; i < items.length; i++) {
-      var w = SW + PAD + items[i].name.length * charW;
-      if (rows[r].length && widths[r] + GAP + w > W - 24) { r++; rows[r] = []; widths[r] = 0; }
-      if (rows[r].length) widths[r] += GAP;
-      rows[r].push({ item: items[i], x: widths[r] });
-      widths[r] += w;
+      var y = y0 + PAD + i * ROW + fontSize;
+      svg.appendChild(el('rect', {
+        x: x0 + PAD, y: y - SW + 1, width: SW, height: SW, fill: items[i].col, rx: 1.5
+      }));
+      svg.appendChild(el('text', {
+        x: x0 + PAD + SW + GAP, y: y, fill: items[i].col, 'font-size': fontSize,
+        'font-family': 'monospace', 'font-weight': 'bold'
+      }, items[i].name));
     }
-    for (r = 0; r < rows.length; r++) {
-      var ox = (W - widths[r]) / 2, y = 14 + r * ROW;
-      for (i = 0; i < rows[r].length; i++) {
-        var it = rows[r][i].item, x = ox + rows[r][i].x;
-        svg.appendChild(el('rect', { x: x, y: y - SW + 1, width: SW, height: SW, fill: it.col, rx: 1.5 }));
-        svg.appendChild(el('text', {
-          x: x + SW + PAD, y: y, fill: theme.ink, 'font-size': fontSize,
-          'font-family': 'monospace', 'font-weight': 'bold'
-        }, it.name));
-      }
+    // The halving key belongs here rather than under the axis, where over a long window it
+    // collides with the halving ordinals it is trying to explain.
+    if (note) {
+      var ny = y0 + PAD + items.length * ROW + fontSize + 4;
+      svg.appendChild(el('line', {
+        x1: x0 + PAD + 4, y1: ny - fontSize, x2: x0 + PAD + 4, y2: ny + 1,
+        stroke: theme.halving, 'stroke-width': 1, 'stroke-opacity': 0.55
+      }));
+      svg.appendChild(el('text', {
+        x: x0 + PAD + SW + GAP, y: ny, fill: theme.dim, 'font-size': fontSize - 1.5,
+        'font-family': 'monospace'
+      }, note));
     }
-    return 14 + rows.length * ROW;   // total legend height
+    return { w: boxW, h: boxH, x: x0, y: y0 };
+  }
+
+  /// A "nice" year step so a 130-year window does not print 130 ticks.
+  function yearStep(span) {
+    var steps = [1, 2, 5, 10, 20, 25, 50, 100];
+    for (var i = 0; i < steps.length; i++) if (span / steps[i] <= 18) return steps[i];
+    return 200;
   }
 
   function render(mount, opts) {
@@ -235,7 +267,9 @@
       : xOf(msOf(SERIES_LAST_X) + 274 * DAY);
     var xStart = 1;
 
-    var W = 1000, H = opts.height || 600;
+    // 1240 x 600 is ~2.07:1, close to the reference figure's 15x7. The arc wants width: it is a
+    // shallow curve, and a squarer frame makes it look like a diagonal stripe instead.
+    var W = opts.width || 1240, H = opts.height || 600;
     var svg = el('svg', {
       viewBox: '0 0 ' + W + ' ' + H, xmlns: NS, role: 'img',
       'aria-label': 'The Bitcoin rainbow chart: nine logarithmic-regression bands drawn as an arc ' +
@@ -244,8 +278,7 @@
     });
     svg.appendChild(el('rect', { width: W, height: H, fill: theme.bg }));
 
-    var T = drawLegend(svg, W, theme, 10.5) + 10;
-    var L = 66, R = 84, B = 40;                 // L price axis, R market-cap axis
+    var T = 26, L = 66, R = 92, B = 44;         // L price axis, R market-cap axis
 
     // The vertical window is pinned to the painted range itself — the bottom of band 0 where the
     // arc starts, the top of band 8 where it ends — so the rainbow fills the canvas instead of
@@ -292,20 +325,20 @@
       }, usdLabel(Math.pow(10, d) * TERMINAL_SUPPLY)));
     }
     svg.appendChild(el('text', {
-      x: L - 7, y: T - 7, fill: theme.dim, 'font-size': 9.5,
+      x: L - 7, y: T - 9, fill: theme.dim, 'font-size': 9.5,
       'text-anchor': 'end', 'font-family': 'monospace', 'letter-spacing': '0.08em'
     }, 'PRICE'));
     svg.appendChild(el('text', {
-      x: W - R + 7, y: T - 7, fill: theme.faint, 'font-size': 9.5,
+      x: W - R + 7, y: T - 9, fill: theme.faint, 'font-size': 9.5,
       'font-family': 'monospace', 'letter-spacing': '0.08em'
     }, 'MARKET CAP'));
 
-    // ── year ticks ──
+    // ── year ticks, on a step that keeps the axis readable at any window ──
+    // A window to 2140 is 130 years; at one tick a year the labels overprint into a grey smear.
     var y0 = new Date(msOf(xStart)).getUTCFullYear();
     var yEnd = new Date(msOf(xEnd)).getUTCFullYear();
-    var everyN = (yEnd - y0) > 20 ? 2 : 1;
-    for (var yr = y0 + 1; yr <= yEnd; yr++) {
-      if ((yr - y0) % everyN) continue;
+    var step = yearStep(yEnd - y0);
+    for (var yr = Math.ceil((y0 + 1) / step) * step; yr <= yEnd; yr += step) {
       var xx2 = Xms(Date.UTC(yr, 0, 1));
       if (xx2 < L || xx2 > W - R) continue;
       svg.appendChild(el('line', {
@@ -317,9 +350,16 @@
       }, String(yr)));
     }
 
-    // ── halvings, actual then scheduled ──
+    // ── halvings: the four that happened, then the whole schedule to the end of emission ──
+    // Solid where it is history, dashed where it is arithmetic. Over a long window all 32 land on
+    // the canvas and the rhythm — four years, tightening against nothing, because the interval
+    // never changes — is the clearest thing on the chart.
     var hv = HALVINGS.slice(), lastH = hv[hv.length - 1];
-    while (lastH + HALVING_STEP_MS < msOf(xEnd)) { lastH += HALVING_STEP_MS; hv.push(lastH); }
+    while (lastH + HALVING_STEP_MS < msOf(xEnd) && hv.length < 33) {
+      lastH += HALVING_STEP_MS; hv.push(lastH);
+    }
+    var spacing = hv.length > 1 ? Math.abs(Xms(hv[1]) - Xms(hv[0])) : 999;
+    var labelEvery = spacing >= 46 ? 1 : spacing >= 22 ? 4 : 0;
     for (i = 0; i < hv.length; i++) {
       var hx = Xms(hv[i]);
       if (hx < L || hx > W - R) continue;
@@ -329,8 +369,13 @@
         'stroke-width': actual ? 1 : 0.8, 'stroke-opacity': actual ? 0.55 : 0.28,
         'stroke-dasharray': actual ? '' : '3 4'
       }));
+      if (labelEvery && i % labelEvery === 0) {
+        svg.appendChild(el('text', {
+          x: hx, y: H - B + 26, fill: actual ? theme.dim : theme.faint, 'font-size': 8.5,
+          'text-anchor': 'middle', 'font-family': 'monospace'
+        }, String(i + 1)));
+      }
     }
-
     // ── the measured price path ──
     var pts = [];
     for (i = 0; i < SERIES.length; i++) {
@@ -342,6 +387,10 @@
       points: pts.join(' '), fill: 'none', stroke: theme.price,
       'stroke-width': 1.6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round'
     }));
+
+    // ── the key, in the dead corner above the early years ──
+    drawCornerLegend(svg, L, T, theme, 10.5,
+      hv.length > 4 ? 'halvings: 4 actual, ' + (hv.length - 4) + ' scheduled' : 'halvings');
 
     // ── where the price stands today, and what that is worth in aggregate ──
     // The arc climbs to the top-right, so the bottom-right of the plot is always empty: the

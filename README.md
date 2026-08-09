@@ -40,7 +40,8 @@ python src/main.py --offline --report
 ```
 
 The price series is embedded in the file, so `js/example.html` opens from disk and draws with the
-network unplugged.
+network unplugged. The key sits in the dead corner above the early years, each label painted in its
+own band's colour; the forward window is unbounded.
 
 ![the javascript renderer](img/rainbow-chart-js.png)
 
@@ -102,10 +103,22 @@ The right margin prices every gridline twice: once as BTC price, once as market 
 | $10k | $210B |
 | $100k | $2.1T |
 | $1M | $21T |
+| $1B | $21Q |
 
 It is the price axis **rescaled**, not a second measurement — which is why the two never drift apart.
 For market cap at a *past* date, where less had been mined, `marketcap_at(price, date)` uses the
 supply actually emitted by then, derived from the halving schedule with no network call.
+
+## The long window
+
+`to:` is unbounded. The fit crosses **$1M/coin around 2035, $100M around 2075 and $1B around 2113**;
+at `to: 2140` — the end of emission — the price axis runs $0.10 → $10B, the market cap runs to
+**$210Q**, and **all 32 halvings** are marked: four solid for the history, 28 dashed for the
+schedule. Year ticks and halving ordinals thin themselves so the axis stays readable across 130
+years.
+
+That does not make the extrapolation meaningful. It makes the absurdity legible, which is the
+honest thing for a chart to do with its own far end.
 
 ## Parity
 
@@ -124,10 +137,15 @@ $ python tests/test_parity.py
 all green
 ```
 
-It runs the JavaScript under node and compares fit values, band membership at 64 price/date
-combinations, the supply schedule, every constant and every label against the Python core. It has
-already earned its keep: it caught the Python side truncating the fractional day in the 1458.33-day
-halving step, which had put every scheduled epoch boundary a third of a day early.
+It runs the JavaScript under node and compares fit values, band membership across 143 price/date
+combinations, the supply schedule, every constant and every label against the Python core.
+
+It has already earned its keep twice. It caught the Python side truncating the fractional day in
+the 1458.33-day halving step, which had put every scheduled epoch boundary a third of a day early.
+And when the JS label formatter was extended past a trillion — needed once the window reached
+2140 — the suite went green anyway, because its probes stopped at $5M. The probes now reach
+$2.1e19, and the Python formatter was extended to match. **A parity test only covers the range it
+samples**, which is its own lesson.
 
 ## Honest caveats
 

@@ -26,8 +26,13 @@ JS = os.path.join(os.path.dirname(__file__), "..", "js", "rainbow-chart.js")
 NODE = shutil.which("node")
 
 # Day indices spread across the whole series and into the forward window.
-X_PROBES = [1, 2, 100, 1000, 2500, 5000, 5836, 7000]
-PRICE_PROBES = [0.06, 1.0, 100.0, 1000.0, 20000.0, 65013.0, 250000.0, 5_000_000.0]
+X_PROBES = [1, 2, 100, 1000, 2500, 5000, 5836, 7000, 23535, 37448, 47000]
+# The upper probes reach where a long extrapolation actually goes: the fit passes $1M/coin around
+# 2035, $100M around 2075 and $1B around 2113, and market cap at the terminal supply is 21,000,000x
+# each of those. Without probes up here the label formatters could disagree above a trillion and
+# every test would still pass — which is exactly what happened once.
+PRICE_PROBES = [0.06, 1.0, 100.0, 1000.0, 20000.0, 65013.0, 250000.0, 5_000_000.0,
+                1e9, 2.24e10, 4.7e14, 4.7e17, 2.1e19]
 DATE_PROBES = ["2009-01-03", "2012-11-28", "2016-07-09", "2020-05-11",
                "2024-04-20", "2026-08-08", "2040-01-01", "2140-01-01"]
 

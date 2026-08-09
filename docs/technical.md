@@ -180,36 +180,79 @@ logo.
 * The vertical window is pinned to the painted range itself — the bottom of band 0 where the arc
   starts, the top of band 8 where it ends — so the rainbow fills the canvas instead of floating in it.
 * The forward window defaults to **9 months** past the last close, matching the reference's
-  `EXTEND_MONTHS`. Extending further stretches the arc thin and paints more forecast than record.
+  `EXTEND_MONTHS`, and `to:` walks it out as far as you like (see below).
 
 ### Layout
 
+The frame is **1240 × 600**, about 2.07:1 — close to the reference figure's 15 × 7. The arc wants
+width: it is a shallow curve, and a squarer frame makes it read as a diagonal stripe.
+
 ```
-┌─ legend: BTC price + nine bands, flowed into as many rows as fit ─┐
-│ PRICE                                              MARKET CAP    │
-│  $1M ┤                                        ╭──────╮  $21T     │
-│      │                         ╭──────────────╯                  │
-│ $100k┤        ╭────────────────╯                        $2.1T    │
-│      │   ╭────╯                          ┌────────────┐          │
-│ $10k ┤ ╭─╯                               │ readout    │  $210B   │
-│      │╯                                  │ card       │          │
-│      └───────────────────────────────────┴────────────┴──────    │
-│        2011   2013   2015   2017   2019   2021   2023   2025     │
-└──────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│ PRICE                                                     MARKET CAP   │
+│  $1M ┤ ┌──────────────────────┐                    ╭───────╮   $21T    │
+│      │ │ ■ BTC price          │      ╭─────────────╯                   │
+│ $100k┤ │ ■ Maximum bubble …   │ ╭────╯                        $2.1T    │
+│      │ │ … nine bands, each   │─╯                                      │
+│ $10k ┤ │   in its own colour  │              ┌────────────┐   $210B    │
+│      │ │ │ halvings: 4 actual │              │ readout    │            │
+│  $1k ┤ └──────────────────────┘              │ card       │    $21B    │
+│      │╯                                      └────────────┘            │
+│      └──────────────────────────────────────────────────────────────   │
+│        2011   2013   2015   2017   2019   2021   2023   2025   2027    │
+│          1              2            3          4                      │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-Band labels live in the **top legend**, not the right margin. In the margin they bunch into the top
-fifth of the canvas (the bands converge there), overlap each other, and the ninth clips off the top
-edge entirely. The legend also frees the right margin for the market-cap axis.
+**The key sits in the top-left, inside the plot.** The arc climbs from the bottom-left to the
+top-right, so the corner above the early years is dead space in every window the chart can draw —
+and the wider the window, the more of it there is. Putting the key there costs the plot nothing,
+where a banner across the top costs a strip of height and a right-margin column costs the
+market-cap axis. Each label is painted in **its own band's colour**, so the word is its own sample.
 
-The **readout card** sits in the bottom-right. The arc climbs to the top-right, so that corner is
-always empty — text placed near the dot lands on nine saturated colours and becomes unreadable. The
-card gets a backing plate and a leader line to the dot instead.
+Two placements that were tried and are wrong:
+
+* **Right margin.** The bands converge as the arc flattens, so all nine labels bunch into the top
+  fifth of the canvas, overlap each other, and the ninth clips off the top edge entirely.
+* **Banner across the top.** Ten items do not fit one row at this width, so it wraps to two and
+  eats ~50px of plot height on every render.
+
+**The readout card** sits in the bottom-right, which is empty for the same reason the top-left is.
+Text placed near the dot lands on nine saturated colours and cannot be read; the card gets a
+backing plate and a dashed leader line to the dot instead. The legend gets a plate too — the decade
+gridlines run the full width of the plot and would otherwise strike through it.
+
+### Long windows
+
+`to:` accepts any year. The fit does not stop at the edge of the record, and the magnitudes it
+reaches are worth stating:
+
+| the fit crosses | around |
+|---|---|
+| $1M / coin | 2035 |
+| $10M | 2051 |
+| $100M | 2075 |
+| **$1B** | **2113** |
+| $1T | 2419 |
+
+At `to: 2140` — the end of emission — the price axis runs $0.10 → $10B, the market-cap axis runs
+$2.1M → $210Q, and **all 32 halvings** are on the canvas: four solid (history), 28 dashed
+(schedule). Three things adapt so that stays readable:
+
+* **Year ticks** pick a nice step (1, 2, 5, 10, 20, 25, 50, 100) targeting ≤ 18 ticks. At one tick
+  per year a 130-year window prints 130 labels as a grey smear.
+* **Halving ordinals** are labelled every halving when they are ≥ 46px apart, every fourth when
+  ≥ 22px, and not at all below that. The lines are always drawn — the rhythm is the point.
+* **`usdLabel` runs to quadrillions.** Stopping at `T` printed `$469674T` for the top band's market
+  cap in 2140. Past a quintillion it prints an exponent instead of inventing a suffix.
+
+None of this makes the extrapolation meaningful — see [explanation.md](explanation.md). It makes
+the absurdity *legible*, which is the honest thing for a chart to do with its own far end.
 
 ### API
 
 ```js
-RainbowChart.render(mount, { to, height, theme })   // draw; returns {svg, lastUsd, lastX, band}
+RainbowChart.render(mount, { to, height, width, theme })  // returns {svg, lastUsd, lastX, band}
 RainbowChart.fit(x)                                 // USD at day index x
 RainbowChart.bandOf(usd, x)                         // 0..8, or -1 / 9 off-scale
 RainbowChart.supplyAt(ms)                           // BTC from the emission schedule
