@@ -92,6 +92,19 @@ was drawn with room for manias.
 `bandOf()` returns `-1` / `9` outside the painted range rather than clamping, because about **14% of
 BTC's history falls outside it entirely** and pinning to an edge would hide that.
 
+## Two palettes
+
+The classic scale is the default and is kept verbatim: it is what makes this chart comparable to
+every other rainbow chart. A second, named palette — `house` — is SHAMBA LUV's trader's ramp: the
+fire sale is **red**, the centre band is **bitcoin orange** (`#F7931A`), and the far top, where you
+sell, is **candle green**; on it the price path is drawn in bitcoin orange too. Same fit, same
+bands, same words — only the ink changes. Both renderers carry both palettes under the same names
+(`PALETTES` / `bands_for(name)` in Python, `RainbowChart.PALETTES` / `bandsFor(name)` /
+`opts.palette` in JS) and the parity test checks both, so a colour cannot drift on one side.
+The live build at [luv.pythai.net/rainbow.html](https://luv.pythai.net/rainbow.html) draws the
+house ramp with a toggle back to classic; [rainbowchart.html](https://luv.pythai.net/rainbowchart.html)
+stays on the reference scale.
+
 ## Market cap
 
 The right margin prices every gridline twice: once as BTC price, once as market cap at the

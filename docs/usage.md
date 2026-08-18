@@ -66,7 +66,8 @@ x = R.date_to_day_index(dt.date(2026, 8, 8))
 
 R.fit_value(x)                      # 115378.06   the curve, in USD, that day
 R.band_of(65013, x)                 # 0           "Fire sale!"
-R.BANDS[0]                          # ('#4472c4', 'Fire sale!')
+R.BANDS[0]                          # ('#4472c4', 'Fire sale!')   the reference palette
+R.bands_for("house")[4]             # ('#F7931A', 'HODL!')        the house ramp: bitcoin orange at the centre
 R.band_bounds(2, x)                 # (99306.81, 134050.18)  the "Accumulate" band that day
 
 R.supply_at(dt.date(2026, 8, 8))    # 20065500.86  BTC, from the emission schedule
@@ -145,8 +146,34 @@ RainbowChart.render(mount, {
 });
 ```
 
-The nine **band** colours are deliberately not themeable — they are the shared vocabulary that makes
-one rainbow chart comparable to another. Edit `BANDS` if you really mean to break that.
+The nine **band** colours are not themeable through `theme` — they are the shared vocabulary that
+makes one rainbow chart comparable to another. There are exactly two named palettes, and both
+renderers carry both:
+
+```js
+RainbowChart.render(mount, { palette: 'classic' });   // the reference scale, blue → red (default)
+RainbowChart.render(mount, { palette: 'house' });     // SHAMBA LUV's ramp: red fire sale, bitcoin-orange
+                                                      // centre, candle-green top; the price path goes
+                                                      // bitcoin orange with it
+RainbowChart.PALETTES                                 // { classic: [...9], house: [...9] }
+RainbowChart.bandsFor('house')                        // [{ name, col }, ...] bottom band first
+```
+
+Or on the mount: `<div data-luvrainbowchart data-palette="house"></div>`. `RainbowChart.BANDS` is
+always the classic scale — that is the object the parity test reads — and `bands_for("house")` /
+`PALETTES` mirror it in Python. Adding a third palette means adding it on both sides, or the parity
+test fails, which is the point.
+
+### Layers
+
+Every layer is a flag, on unless said otherwise: `path` (the measured price line), `halvings`,
+`key`, and `debt` (off by default — overlays total world debt on the market-cap reading, raising the
+ceiling to hold it; the figure comes from `DVLuvRainbow.worldDebtAt` when that organ is on the page,
+and the layer is skipped when it is not).
+
+```js
+RainbowChart.render(mount, { palette: 'house', debt: true, halvings: false });
+```
 
 ### Sizing
 

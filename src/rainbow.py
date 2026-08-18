@@ -43,7 +43,7 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 __all__ = [
-    "Fit", "PUBLISHED_FIT", "BANDS", "BAND_WIDTH", "BAND_OFFSET", "TERMINAL_SUPPLY",
+    "Fit", "PUBLISHED_FIT", "BANDS", "NAMES", "PALETTES", "bands_for", "BAND_WIDTH", "BAND_OFFSET", "TERMINAL_SUPPLY",
     "HALVINGS", "fit_value", "band_of", "band_bounds", "supply_at", "marketcap_at",
     "marketcap_axis", "usd_label", "day_index_to_date", "date_to_day_index", "fit_from_series",
 ]
@@ -81,18 +81,33 @@ BAND_WIDTH = 0.3        # natural log, per the reference
 BAND_OFFSET = 1.5       # the reference's i_decrease
 TERMINAL_SUPPLY = 21_000_000
 
-#: The reference colour scale and labels, bottom band first.
-BANDS: tuple[tuple[str, str], ...] = (
-    ("#4472c4", "Fire sale!"),
-    ("#54989f", "BUY!"),
-    ("#63be7b", "Accumulate"),
-    ("#b1d580", "Still cheap"),
-    ("#feeb84", "HODL!"),
-    ("#f6b45a", "Is this a bubble?"),
-    ("#ed7d31", "FOMO Intensifies"),
-    ("#d64018", "Sell. Seriously, SELL!"),
-    ("#c00200", "Maximum bubble territory"),
+#: The nine labels, bottom band first — the same words on every palette.
+NAMES: tuple[str, ...] = (
+    "Fire sale!", "BUY!", "Accumulate", "Still cheap", "HODL!",
+    "Is this a bubble?", "FOMO Intensifies", "Sell. Seriously, SELL!", "Maximum bubble territory",
 )
+
+#: The two colour scales, bottom band first. ``classic`` is the reference palette, kept verbatim —
+#: it is what makes one rainbow chart comparable to every other, and it is the default. ``house``
+#: is the trader's ramp SHAMBA LUV draws: the fire zone is red, the centre band is bitcoin orange
+#: (#F7931A), and the far top — where you sell — is candle green. Same geometry, same words; only
+#: the ink changes. The JavaScript carries both under the same names, and the parity test checks
+#: both.
+BTC_ORANGE = "#F7931A"
+PALETTES: dict[str, tuple[str, ...]] = {
+    "classic": ("#4472c4", "#54989f", "#63be7b", "#b1d580", "#feeb84", "#f6b45a", "#ed7d31", "#d64018", "#c00200"),
+    "house":   ("#d81e3c", "#e5402c", "#ee5f22", "#f47a1c", BTC_ORANGE, "#e8a91e", "#d3bd25", "#8ec43a", "#0ecb81"),
+}
+
+
+def bands_for(palette: str = "classic") -> tuple[tuple[str, str], ...]:
+    """(colour, label) for each of the nine bands, bottom first, on the named palette."""
+    cols = PALETTES.get(palette, PALETTES["classic"])
+    return tuple(zip(cols, NAMES))
+
+
+#: The reference colour scale and labels, bottom band first.
+BANDS: tuple[tuple[str, str], ...] = bands_for("classic")
 
 #: The four halvings that have happened; the schedule then steps 210,000 blocks (~1458.33 days).
 HALVINGS = (

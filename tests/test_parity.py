@@ -48,7 +48,8 @@ def _js():
       label: P.map(p => R.usdLabel(p)),
       constants: { a: R.FIT.a, b: R.FIT.b, c: R.FIT.c,
                    bandWidth: R.BAND_WIDTH, bandOffset: R.BAND_OFFSET,
-                   terminal: R.TERMINAL_SUPPLY, bands: R.BANDS.map(b => [b.col, b.name]) }
+                   terminal: R.TERMINAL_SUPPLY, bands: R.BANDS.map(b => [b.col, b.name]),
+                   palettes: Object.keys(R.PALETTES).sort().map(k => [k, R.bandsFor(k).map(b => [b.col, b.name])]) }
     };
     for (const x of X) for (const p of P) out.band.push(R.bandOf(p, x));
     console.log(JSON.stringify(out));
@@ -142,6 +143,10 @@ def test_js_matches_python():
     assert c["bandWidth"] == R.BAND_WIDTH and c["bandOffset"] == R.BAND_OFFSET
     assert c["terminal"] == R.TERMINAL_SUPPLY
     assert [tuple(b) for b in c["bands"]] == list(R.BANDS), "band colours/labels differ"
+    # both palettes, by name — a colour changed on one side and not the other fails here
+    assert [k for k, _ in c["palettes"]] == sorted(R.PALETTES), "palette names differ"
+    for name, bands in c["palettes"]:
+        assert [tuple(b) for b in bands] == list(R.bands_for(name)), f"palette {name!r} differs"
 
     for x, got in zip(X_PROBES, js["fit"]):
         assert _close(R.fit_value(x), got, 1e-12), f"fit disagrees at x={x}"
